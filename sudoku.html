@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <style>
+    table {
+      border-collapse: collapse;
+      margin: 30px auto;
+      border: 3px solid #666;
+    }
+
+    td {
+      width: 2.5em;
+      height: 2.5em;
+      line-height: 2.5em;
+      text-align: center;
+      border: 1px solid #666;
+      cursor: pointer;
+    }
+
+    td.seleted {
+      background-color: skyblue;
+    }
+
+    tr:nth-child(3n) {
+      border-bottom: 3px solid #666;
+    }
+
+    tr td:nth-child(3n) {
+      border-right: 3px solid #666;
+    }
+
+    .controlBar {
+      text-align: center;
+    }
+
+    .controlBar p {
+      height: 1.5em;
+    }
+
+    .controlBar button {
+      margin: 0 20px;
+    }
+
+    ol,
+    ul,
+    li {
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    #MenuDiv {
+      border-bottom: 1px solid #666;
+    }
+
+    #MenuDiv span {
+      display: block;
+      background-color: #f2f3f4;
+      border: 1px solid #666;
+      border-bottom: 0;
+      width: 80px;
+      height: 1.7em;
+      line-height: 1.7em;
+      text-align: center;
+      cursor: pointer;
+      /* border-radius: 5px; */
+    }
+
+    #MenuDiv span:hover {
+      background-color: skyblue;
+
+    }
+  </style>
+</head>
+
+<body>
+
+  <script>
+
+    ///////////////////////////////////////////////////
+    //
+    //  生成界面
+    //
+    ///////////////////////////////////////////////////
+
+    var _body = document.querySelector('body');
+    var _sudoku, _table, _control, _info, _tar; //sudoku整个框架，表格，控制条，信息，点击目标
+
+    function createTable(arr) {// 用（数组）建立表格，返回整个table（element类型）
+      let table = document.createElement('table');
+      for (let i = 0; i < 9; i++) {
+        let tr = document.createElement('tr');
+        for (let j = 0; j < 9; j++) {
+          let td = document.createElement('td');
+          if (Object.prototype.toString.call(arr) != "[object Array]") {//判断数组
+            td.innerText = '';
+          } else if (arr[i][j] > 0 && arr[i][j] <= 9) {
+            td.innerText = arr[i][j];
+            td.className = 'seleted';
+          }
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
+      }
+      table.addEventListener('click', (e) => MenuPanel(e));//监听表格，点击弹出选择。
+      return table;
+    }
+
+    function readTable() {//读取表格，返回数组
+      let arr = Array.from(_table.querySelectorAll('td'));
+      let result = [];
+      arr = arr.map(o => o.innerText === '' ? 0 : +o.innerText);//空转0，字符转数字
+      for (let i = 0; i < 81; i += 9) {
+        result.push(arr.slice(i, i + 9));
+      }
+      return result;
+    }
+
+    function createControl() {//生成控制条，返回整个DIV（element类型）
+      let div = document.createElement('div');//控制条DIV
+      _info = document.createElement('p');//显示信息
+      var btnLoadArr = document.createElement('button');//加载btn
+      var btnCompute = document.createElement('button');//计算btn
+      var btnReset = document.createElement('button');//重置btn
+      div.className = 'controlBar';
+      _info.className = 'info';
+      _info.innerText = '内置2维数组变量 A0 ，加载|计算：loadArr(A0) | runds(array)';
+      btnLoadArr.innerText = '加载默认数独';
+      btnCompute.innerText = '计算方案';
+      btnReset.innerText = '重置';
+      btnLoadArr.addEventListener('click', () => loadArr(A0));//监听btn
+      btnCompute.addEventListener('click', () => runds(readTable()));//计算填的数字
+      btnReset.addEventListener('click', () => init());
+      div.appendChild(_info);
+      div.appendChild(btnLoadArr);
+      div.appendChild(btnCompute);
+      div.appendChild(btnReset);
+
+      var btnTest = document.createElement('button');///////////测试用btn---
+      btnTest.innerText = '测试用';///////////测试用btn---
+      btnTest.addEventListener('click', (e) => runArr(readTable()));///////////测试用btn---
+      div.appendChild(btnTest);///////////测试用btn---
+
+      return div;
+    }
+
+    function loadArr(arr) {//加载数独
+      _table = createTable(arr);//更新表格
+      _sudoku.replaceChild(_table, _sudoku.querySelector('table'));
+      _info.innerText = "";
+    }
+
+    function init() {//立即初始化！
+      if (_sudoku) _body.removeChild(_sudoku);
+      _sudoku = document.createElement('div');//生成框架
+      _table = createTable();//生成空表格
+      _control = createControl();//生成控制条
+
+      _sudoku.appendChild(_table);
+      _sudoku.appendChild(_control);
+      _body.appendChild(_sudoku);
+    };
+    init();
+
+    // 计算改版
+
+    var result = [];
+    var maximum = 12000;
+    var count = 0;
+
+    var runArr = function (arr) {
+      maximum = 12000;
+      count = 0;
+      console.time("运行用时");
+      calculate(arr);
+      console.timeEnd("运行用时");
+      // console.log(result);
+    }
+
+    function calculate(arr) {
+      let localCount = count++;//记录第几次测试
+      if (count > maximum) {
+        console.log('已到达最大尝试次数 ' + localCount);
+        return;
+      }
+
+      var _o = {//已选记录表【注意，是9宫格坐标系】x是横坐标--第x列，y是纵坐标--第y行，z是小正方--第z个
+        // x: Array.from({ length: 9 }, (v, k) => []),
+        // y: Array.from({ length: 9 }, (v, k) => []),
+        // z: Array.from({ length: 9 }, (v, k) => [])
+        x: [[], [], [], [], [], [], [], [], [],],
+        y: [[], [], [], [], [], [], [], [], [],],
+        z: [[], [], [], [], [], [], [], [], [],]
+      };
+
+      arr.map((aY, yi) => aY.map((v, xi) => {//记录 x列 y行 z小正方，已选‘数字’置1 //yi, xi是数组索引，v是‘数字’
+        let zi = (yi - yi % 3) + (xi - xi % 3) / 3;
+        _o.x[xi][v] = _o.y[yi][v] = _o.z[zi][v] = ~~!!v;
+        // _o.x[xi][v] = _o.y[yi][v] = _o.z[zi][v] = v?1:0;
+        // if (!_o.x[xi][v]) _o.x[xi][v] = v?1:0;
+        // if (!_o.y[yi][v]) _o.y[yi][v] = v?1:0;
+        // if (!_o.z[zi][v]) _o.z[zi][v] = v?1:0;
+      }));
+
+
+      let flag = 0;//空格标记
+      let range = 9;
+
+      _o.try = arr.every((aY, yi) => aY.every((v, xi) => {
+        if (v === 0) {
+          flag = 1;//有空格标记1
+          let fitNums = 0;
+          for (let i = 1; i < 10; i++) {
+            let zi = (yi - yi % 3) + (xi - xi % 3) / 3;
+            if (!_o.x[xi][i] && !_o.y[yi][i] && !_o.z[zi][i]) {
+              fitNums++;//空格候选数+1
+            }
+          }
+          if (fitNums === 0) return false;//空格选不出数字，every返回false 到 _o.try
+
+          if (fitNums < range) {//候选数最少的空格的坐标
+            range = fitNums;
+            _o.tarX = xi;
+            _o.tarY = yi;
+          }
+        }
+        return true;
+      }));
+
+      if (flag === 0) {//空格标记0没有，成功，返回
+        maximum = count;
+        console.log('ok, done.', '次数', localCount, '结果\n', arr);
+        result = arr;
+        return;
+      }
+
+      if (!_o.try && flag === 1) {//空格候选数字0，失败，返回
+        // console.log('次数', localCount, '选不出数字，失败')
+        return;
+      }
+
+      //空格候选数字>0，继续-->定位目标空格
+      let arrCopy = JSON.parse(JSON.stringify(arr));
+      for (let i = 1; i < 10; i++) {
+        let zi = (_o.tarY - _o.tarY % 3) + (_o.tarX - _o.tarX % 3) / 3;
+        if (!_o.x[_o.tarX][i] && !_o.y[_o.tarY][i] && !_o.z[zi][i]) {//根据记录表筛选
+          // console.log('calculate', localCount, '测试空格', _o.tarX, _o.tarY, '数字', i, arr);
+          arrCopy[_o.tarY][_o.tarX] = i;//并填入数字
+          // console.log('calculate', localCount, '测试空格', _o.tarX, _o.tarY, '数字', i, arrCopy);
+          if (count < maximum) calculate(arrCopy);// 如果全局计数可用，计算新表格
+          // break;
+        }
+      }
+      // console.log('走完calculate', localCount);
+    }
+
+    ///////////////////////////////////////////////////
+    //
+    //  计算
+    //
+    ///////////////////////////////////////////////////
+
+    var A0 = [
+      [8, 0, 0, 0, 0, 0, 0, 0, 0],
+      [0, 0, 3, 6, 0, 0, 0, 0, 0],
+      [0, 7, 0, 0, 9, 0, 2, 0, 0],
+      [0, 5, 0, 0, 0, 7, 0, 0, 0],
+      [0, 0, 0, 0, 4, 5, 7, 0, 0],
+      [0, 0, 0, 1, 0, 0, 0, 3, 0],
+      [0, 0, 1, 0, 0, 0, 0, 6, 8],
+      [0, 0, 8, 5, 0, 0, 0, 1, 0],
+      [0, 9, 0, 0, 0, 0, 4, 0, 0]
+    ];
+
+    var OK_Ax;
+    var L = 12000; //最多尝试次数
+    var Lx = 0;
+    // runds();
+
+
+    function runds(arr) {
+      OK_Ax = null;
+      L = 12000;
+      Lx = 0;
+      console.time("运行用时");
+      var beginTime = +new Date();
+      goone(arr);
+      var endTime = +new Date();
+      //console.log("运行用时共计" + (endTime - beginTime) + "ms");
+      console.timeEnd("运行用时");
+      console.log("尝试次数：" + Lx);
+      clog(OK_Ax);
+      loadArr(OK_Ax);//<---------------------------------------------输出更新页面
+      _info.innerText = "运行用时 " + (endTime - beginTime) + " ms，尝试次数：" + Lx;
+    }
+
+
+    function goone(Ax) {
+      if (!L) {
+        return;
+      }
+      Lx++;
+      L--;
+
+      ///对行、列、小正方可能进行统计
+      var Knall_x = [];
+      var Knall_y = [];
+      var Knall_z = [];
+      //横向//纵向
+      for (var x = 0; x < 9; x++) {
+        var tt_x = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        var tt_y = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        for (var y = 0; y < 9; y++) {
+          if (Ax[x][y] != 0) {
+            tt_x[Ax[x][y]] = 1;
+          }
+          if (Ax[y][x] != 0) {
+            tt_y[Ax[y][x]] = 1;
+          }
+        }
+        Knall_x[x] = tt_x;
+        Knall_y[x] = tt_y;
+      }
+      //小正方
+      for (var i = 0; i < 9; i++) {
+        var tt_z = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+        var a0z = (i - i % 3);
+        var b0z = i % 3 * 3;
+        for (var x = a0z; x < a0z + 3; x++) {
+          for (var y = b0z; y < b0z + 3; y++) {
+            if (Ax[x][y] != 0) {
+              tt_z[Ax[x][y]] = 1;
+            }
+          }
+        }
+        Knall_z[i] = tt_z;
+      }
+
+      ///判断可能
+      var knA = []; //可能值数据表。
+      var live_ = 9;  //最小可能。
+      var live_a, live_b;
+      var YNOK = 1; //是否已经完成
+
+      for (var a = 0; a < 9; a++) {
+        for (var b = 0; b < 9; b++) {
+          if (Ax[a][b] == 0) {
+            YNOK = 0; //未完成
+            //查找当前位置可能数
+            var OKczkn_0 = 0;
+            for (var c = 1; c < 10; c++) {
+              if (Knall_x[a][c] == 0 && Knall_y[b][c] == 0
+                && Knall_z[(a - a % 3) + (b - b % 3) / 3][c] == 0
+              ) {
+                OKczkn_0++;
+              }
+            }
+            //出错了,结束尝试
+            if (OKczkn_0 == 0) {
+              return;
+            }
+            //找到有更少可能的试算 并记录
+            if (live_ > OKczkn_0) {
+              live_ = OKczkn_0;
+              live_a = a;
+              live_b = b;
+            }
+          }
+        }
+      }
+
+      ///判断是否完成
+      if (YNOK == 1) {
+        OK_Ax = deepcopy(Ax);
+        L = 0;
+        return;
+      }
+
+      ///填入一个数据;
+      var a = live_a, b = live_b;
+      var new_Ax = deepcopy(Ax);
+      for (var f = 1; f < 10; f++) {
+        //if (live_[f] == 0)
+        if (Knall_x[a][f] == 0 && Knall_y[b][f] == 0 &&
+          Knall_z[(a - a % 3) + (b - b % 3) / 3][f] == 0) {
+          //填入
+          new_Ax[a][b] = f;
+          goone(new_Ax);
+        }
+      }
+    }
+
+    //复制 多维数组
+    function deepcopy(obj) {
+      var out = [], i = 0, len = obj.length;
+      for (; i < len; i++) {
+        out[i] = obj[i] instanceof Array ? deepcopy(obj[i]) : obj[i];
+      }
+      return out;
+    }
+
+    //打印 数组
+    function clog(obj) {
+      if (obj instanceof Array) {
+        var out = [], i = 0, len = obj.length;
+        for (; i < len; i++) {
+          out[i] = obj[i] instanceof Array ? deepcopy(obj[i]) : obj[i];
+          console.log(obj[i] instanceof Array ? obj[i] : "");
+
+        }
+      } else
+        console.log(obj);
+    }
+
+    ///////////////////////////////////////////////////
+    //
+    //  下拉选择
+    //
+    ///////////////////////////////////////////////////
+
+    //关闭DIV MENU
+    function MenuClose() {
+      var MenuDiv = document.getElementById("MenuDiv");
+      if (MenuDiv != null) {
+        document.body.removeChild(MenuDiv);
+      }
+    }
+    //创建menu
+    function MenuPanel(e) {//opflag, operid, left, top
+      let obj = e.srcElement ? e.srcElement : e.target;
+      _tar = obj;
+      var MenuDiv = document.getElementById("MenuDiv");
+      if (MenuDiv != null) {
+        document.body.removeChild(MenuDiv);
+      }
+
+      MenuDiv = document.createElement("div");//生成下拉div
+      MenuDiv.id = "MenuDiv";
+      MenuDiv.onmouseleave = function () {
+        MenuClose();
+      }
+      MenuDiv.style.position = "absolute";//绝对定位
+      MenuDiv.style.left = getAbsolutePos(obj).x + 'px';
+      MenuDiv.style.top = getAbsolutePos(obj).y + 'px';
+
+      for (let i = 0; i <= 9; i++) {//生成0-9选项
+        let m = document.createElement("span");
+        m.innerText = i;
+        MenuDiv.appendChild(m);
+      }
+
+      MenuDiv.addEventListener('click', function (e) {//监听选择，更新数字
+        let o = e.srcElement ? e.srcElement : e.target;
+        if (o.tagName === 'SPAN') {
+          _tar.innerText = o.innerText;
+          _tar.className = 'seleted'
+          MenuClose();
+        }
+        if (_tar.innerText === '0') {//0清空
+          _tar.innerText = "";
+          _tar.className = ''
+        }
+      })
+
+      document.body.appendChild(MenuDiv);
+    }
+    //获取控件的高度和宽度
+    function getAbsolutePos(e) {
+      var t = e.offsetTop;
+      var l = e.offsetLeft;
+      while (e = e.offsetParent) {
+        t += e.offsetTop;
+        l += e.offsetLeft;
+      }
+      if (_tar.offsetTop > _tar.offsetParent.offsetHeight * 5 / 9) {
+        t -= 237;
+      }
+      var pos = { x: l, y: t };
+      return pos;
+    }
+
+  </script>
+</body>
+
+</html>
